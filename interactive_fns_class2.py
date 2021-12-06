@@ -22,7 +22,7 @@ class InteractiveRainfallBlending():
 
     def __init__(self, path_to_latlon, path_to_stations,
                  path_to_geojson, chirp_floc,
-                 chirps_floc, blend_floc):
+                 chirps_floc, blend_floc, plot_floc):
 
         # Adding paths to class variables.
         self.path_to_latlon = path_to_latlon
@@ -31,6 +31,7 @@ class InteractiveRainfallBlending():
         self.chirp_floc = chirp_floc
         self.chirps_floc = chirps_floc
         self.blend_floc = blend_floc
+        self.plot_floc = plot_floc
 
         # Reading files in
         # Latlon DataFrame
@@ -73,18 +74,18 @@ class InteractiveRainfallBlending():
 
         elif self.stations_1.index[-1] < start_date:
             raise IndexError('Start date is not contained in station data. '
-                                +'Choose a date before {}'.format(self.stations_1.index[-1].date()))
+                             + 'Choose a date before {}'.format(self.stations_1.index[-1].date()))
 
         elif self.stations_1.index[0] > end_date:
             raise IndexError('End_date is not contained in station data. '
-                                +'Choose a date after {}'.format(self.stations_1.index[0].date()))
+                             + 'Choose a date after {}'.format(self.stations_1.index[0].date()))
         else:
             pass
 
         if (self.stations_1.index[0] > start_date) or (self.stations_1.index[-1] < end_date):
             warnings.warn('\nWarning: date range exceeds station data coverage '
-                            +'({0} to {1}), all data being Krigged.'.format(self.stations_1.index[0].date(),
-                                                                            self.stations_1.index[-1].date()))
+                          + '({0} to {1}), all data being Krigged.'.format(self.stations_1.index[0].date(),
+                                                                           self.stations_1.index[-1].date()))
         else:
             pass
 
@@ -95,6 +96,14 @@ class InteractiveRainfallBlending():
         '''
         self.chirps_path = glob.glob(self.chirps_floc+'*'+chirp_fpath.split('\\')[1][6:])[0]
         return self.chirps_path
+
+
+    def get_blended(self, chirp_fpath):
+        '''
+        Function takes CHIRP filepath, and returns fpath of matching CHIRPS.
+        '''
+        self.blend_path = glob.glob(self.blend_floc+'*'+chirp_fpath.split('\\')[1][6:])[0]
+        return self.blend_path
 
 
     def preprocess_data(self, chirp_fpath, outlier_threshold):
@@ -228,7 +237,9 @@ class InteractiveRainfallBlending():
     def overlay(self, blended,
                 chirp, chirps, do_chirp,
                 mask_country,
-                textsize, plotsize):
+                textsize, plotsize,
+                plot_all_flag,
+                file_ext):
         '''
         Function that loads the relevant rasters and plots them.
         '''
@@ -284,7 +295,10 @@ class InteractiveRainfallBlending():
         for i in self.stations.columns:
             lat = self.latlon.loc[i].Latitude
             lon = self.latlon.loc[i].Longitude
-            value = self.stations[i].loc[date_str]
+            if plot_all_flag is False:
+                value = self.stations[i].loc[date_str]
+            else:
+                value = self.stations_all[i].loc[date_str]
 
             lats.append(lat)
             lons.append(lon)
@@ -342,8 +356,11 @@ class InteractiveRainfallBlending():
         plt.colorbar(blended_im, cax=cbax,
                      extend='max', ticks=bounds[:-1])
 
-        plt.savefig('chirp_blended_chirps.pdf')
-        plt.show()
+        plt.savefig(self.plot_floc + 'comparison_plot_{0}.{1}'.format(date_str, file_ext))
+        if plot_all_flag is False:
+            plt.show()
+        else:
+            plt.close()
 
 
     def interactive_plot(self, chirp_fpath,
@@ -352,7 +369,8 @@ class InteractiveRainfallBlending():
                          do_chirp,
                          mask_country,
                          textsize, plotsize, outlier_threshold,
-                         krig_all_flag, start_date, end_date):
+                         krig_all_flag, start_date, end_date,
+                         plot_all_flag, ignore_krigged, file_ext):
         '''
         Function that call the relevant data processing and plotting
         functions so that the widgets can affect the results.
@@ -372,39 +390,26 @@ class InteractiveRainfallBlending():
         blended_fpath = self.do_blending(chirp_fpath,
                                          var_p1, var_p2, var_p3, var_model,
                                          n_points, sigma)
+
         # Plot CHIRP/BLENDED/CHIRPS data with interative options
-            # Which panel/s to display station data
         self.overlay(blended=blended_fpath,
                      chirp=chirp_fpath, chirps=chirps_fpath, do_chirp=do_chirp,
                      mask_country=mask_country,
-                     textsize=textsize, plotsize=plotsize)
+                     textsize=textsize, plotsize=plotsize, plot_all_flag=False,
+                     file_ext=file_ext)
 
         if krig_all_flag is True:
-
-            # if start_date > end_date:
-            #     raise ValueError('End date must be after start date.')
-
-            # elif self.stations_1.index[-1] < start_date:
-            #     raise IndexError('Start date is not contained in station data. '
-            #                      +'Choose a date before {}'.format(self.stations_1.index[-1].date()))
-
-            # elif self.stations_1.index[0] > end_date:
-            #     raise IndexError('End_date is not contained in station data. '
-            #                      +'Choose a date after {}'.format(self.stations_1.index[0].date()))
-            # else:
-            #     pass
-
-            # if (self.stations_1.index[0] > start_date) or (self.stations_1.index[-1] < end_date):
-            #     warnings.warn('\nWarning: date range exceeds station data coverage '
-            #                   +'({0} to {1}), all data being Krigged.'.format(self.stations_1.index[0].date(),
-            #                                                                  self.stations_1.index[-1].date()))
-            # else:
-            #     pass
             self.check_date_range(start_date, end_date)
 
             self.krig_all(outlier_threshold, start_date, end_date,
                           var_p1, var_p2, var_p3, var_model, n_points, sigma)
 
+        if plot_all_flag is True:
+            self.check_date_range(start_date, end_date)
+            self.produce_plots(outlier_threshold, start_date, end_date,
+                               var_p1, var_p2, var_p3, var_model, n_points, sigma,
+                               do_chirp, mask_country, textsize, plotsize,
+                               plot_all_flag, ignore_krigged, file_ext)
 
     def do_interact(self):
         '''
@@ -421,19 +426,23 @@ class InteractiveRainfallBlending():
 
         var_sill_w = widgets.FloatText(value=1, disabled=False,
                                        layout=Layout(width='100px'))
+
         var_range_w = widgets.FloatText(value=1, disabled=False,
                                         style={'description_width': 'initial'},
                                         layout=Layout(width='100px'))
+
         var_nugg_w = widgets.FloatText(value=1, disabled=False,
                                        style={'description_width': 'initial'},
                                        layout=Layout(width='100px'))
+
         var_model_type = widgets.Dropdown(options=['spherical', 'exponential'], disabled=False,
                                           layout=Layout(width='100px'))
+
         n_points_w = widgets.IntText(value=10, disabled=False,
                                      layout=Layout(width='100px'))
+
         sigma_w = widgets.IntText(value=2, disabled=False,
                                   layout=Layout(width='100px'))
-
 
         stat_on_chirp = widgets.Checkbox(value=True, disabled=False, indent=False,
                                          layout=Layout(width='100px'))
@@ -460,7 +469,17 @@ class InteractiveRainfallBlending():
                                       disabled=False,
                                       layout=Layout(width='150px'))
 
-        grid_ui = widgets.GridspecLayout(5, 6, height='200px', width='1000px')
+        plot_all_w = widgets.Checkbox(value=False, disabled=False, indent=False,
+                                      layout=Layout(width='100px'))
+
+        ignore_krigged_w = widgets.Checkbox(value=False, disabled=False, indent=False,
+                                            layout=Layout(width='100px'))
+
+        file_ext_w = widgets.Dropdown(options=['pdf', 'png'],
+                                      disabled=False,
+                                      layout=Layout(width='150px'))
+
+        grid_ui = widgets.GridspecLayout(6, 6, height='200px', width='1000px')
 
         grid_ui[0, 0] = widgets.Label('File name:')
         grid_ui[0, 1] = fname_dropdown
@@ -503,6 +522,14 @@ class InteractiveRainfallBlending():
         grid_ui[4, 3] = end_date_w
         grid_ui[4, 5] = krig_all_w
 
+        grid_ui[5, 0] = widgets.Label('Plot all:')
+        grid_ui[5, 2] = widgets.Label('Ignore krigged:')
+        grid_ui[5, 4] = widgets.Label('Plot file-type:')
+
+        grid_ui[5, 1] = plot_all_w
+        grid_ui[5, 3] = ignore_krigged_w
+        grid_ui[5, 5] = file_ext_w
+
         out = interactive_output(self.interactive_plot,
                                  {'chirp_fpath': fname_dropdown,
                                   'var_p1': var_sill_w,
@@ -518,7 +545,10 @@ class InteractiveRainfallBlending():
                                   'outlier_threshold': outlier_thresh_w,
                                   'krig_all_flag': krig_all_w,
                                   'start_date': start_date_w,
-                                  'end_date': end_date_w})
+                                  'end_date': end_date_w,
+                                  'plot_all_flag': plot_all_w,
+                                  'ignore_krigged': ignore_krigged_w,
+                                  'file_ext': file_ext_w})
 
         display(grid_ui, out)
 
@@ -528,16 +558,11 @@ class InteractiveRainfallBlending():
         Function that prepares the data for Kriging.
         '''
 
-        # Limit CHIRP files to dates for which there is station data
+        # Limit CHIRP files to specified dates.
         chirp_files = np.sort(glob.glob(self.chirp_floc+'*.tif'))
         file_dates = [pd.Timestamp(datesConverter.str_to_dek(dekad[-12:-4]))
                       for dekad in chirp_files]
         file_dates = np.array(file_dates)
-
-        # chirp_files = chirp_files[(file_dates >= self.stations_1.index[0])
-        #                           & (file_dates <= self.stations_1.index[-1])]
-        # file_dates = file_dates[(file_dates >= self.stations_1.index[0])
-        #                         & (file_dates <= self.stations_1.index[-1])]
 
         chirp_files = chirp_files[(file_dates >= start_date)
                                   & (file_dates <= end_date)]
@@ -560,7 +585,7 @@ class InteractiveRainfallBlending():
 
                     # Getting coordinates
                     coord = rio.transform.rowcol(img.transform, self.latlon.loc[l].Longitude,
-                                                self.latlon.loc[l].Latitude)
+                                                 self.latlon.loc[l].Latitude)
                     vals.append(raster[coord[0], coord[1]])
 
             # print(np.shape(chirp_df.loc[dt].values), np.shape(vals))
@@ -610,7 +635,7 @@ class InteractiveRainfallBlending():
         #endregion
 
     def do_blending_all(self, var_p1, var_p2, var_p3, var_model,
-                    n_points, sigma):
+                        n_points, sigma):
         '''
         Function that performs Kriging.
         '''
@@ -622,9 +647,9 @@ class InteractiveRainfallBlending():
             z = z.values
 
             krig = pykrige.ok.OrdinaryKriging(x, y, z,
-                                            variogram_model=var_model,
-                                            variogram_parameters=[var_p1, var_p2, var_p3],
-                                            coordinates_type='geographic')
+                                              variogram_model=var_model,
+                                              variogram_parameters=[var_p1, var_p2, var_p3],
+                                              coordinates_type='geographic')
 
             # Getting raster grid
             da = xr.open_rasterio(chirp_fpath)
@@ -637,7 +662,7 @@ class InteractiveRainfallBlending():
             else:
                 try:
                     kriged_result = krig.execute(style='grid', xpoints=xp, ypoints=yp,
-                                                backend='C', n_closest_points=n_points)[0].data
+                                                 backend='C', n_closest_points=n_points)[0].data
                 except: # If less than 10 points
                     kriged_result = krig.execute(style='grid', xpoints=xp, ypoints=yp)[0].data
 
@@ -665,8 +690,74 @@ class InteractiveRainfallBlending():
 
 
     def krig_all(self, outlier_threshold, start_date, end_date,
-                var_p1, var_p2, var_p3, var_model, n_points, sigma):
+                 var_p1, var_p2, var_p3, var_model, n_points, sigma):
 
         self.preprocess_all_data(outlier_threshold, start_date, end_date)
 
         self.do_blending_all(var_p1, var_p2, var_p3, var_model, n_points, sigma)
+
+
+    def check_if_krigged(self, chirp_fnames, chirp_fdates):
+        # Check if data has been blended already
+        blend_fs = np.sort(glob.glob(self.blend_floc+'*.tif'))
+
+        if len(blend_fs) == 0:
+            return chirp_fnames
+
+        blend_fdates = [pd.Timestamp(datesConverter.str_to_dek(dekad[-12:-4]))
+                        for dekad in blend_fs]
+        blend_fdates = np.array(blend_fdates)
+
+        shared_dates = np.intersect1d(chirp_fdates, blend_fdates,
+                                      assume_unique=True, return_indices=True)
+
+        to_blend_chirp_fnames = np.delete(chirp_fnames, shared_dates[1]) # [1] is the shared date idx for chirp
+
+        return to_blend_chirp_fnames
+
+
+    def produce_plots(self, outlier_threshold, start_date, end_date,
+                      var_p1, var_p2, var_p3, var_model, n_points, sigma,
+                      do_chirp, mask_country, textsize, plotsize,
+                      plot_all_flag, ignore_krigged, file_ext):
+
+        self.preprocess_all_data(outlier_threshold, start_date, end_date)
+
+        if ignore_krigged is True:
+            not_krigged = self.chirp_files_all
+        else:
+            not_krigged = self.check_if_krigged(self.chirp_files_all, self.dates_all)
+
+        if len(self.chirp_files_all) == len(not_krigged):
+            self.preprocess_all_data(outlier_threshold, start_date, end_date)
+            self.do_blending_all(var_p1, var_p2, var_p3, var_model, n_points, sigma)
+
+        elif len(not_krigged) == 0:
+            pass
+
+        else:
+            for chirp_fpath in not_krigged:
+                self.check_date_in_data(chirp_fpath)
+
+                self.preprocess_data(chirp_fpath, outlier_threshold)
+
+                # Find CHIRPS file for CHIRP date
+                chirps_fpath = self.get_chirps(chirp_fpath)
+
+                # Interactive selection/specification of variogram model type/parameters
+                # Run Kriging with above
+                blended_fpath = self.do_blending(chirp_fpath,
+                                                 var_p1, var_p2, var_p3, var_model,
+                                                 n_points, sigma)
+
+        for chirp_fpath in tqdm(self.chirp_files_all):
+            chirps_fpath = self.get_chirps(chirp_fpath)
+            blended_fpath = self.get_blended(chirp_fpath)
+
+            self.overlay(blended=blended_fpath,
+                         chirp=chirp_fpath, chirps=chirps_fpath, do_chirp=do_chirp,
+                         mask_country=mask_country,
+                         textsize=textsize, plotsize=plotsize,
+                         plot_all_flag=plot_all_flag, file_ext=file_ext)
+
+        print('Plots have been saved.')
