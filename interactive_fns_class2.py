@@ -380,30 +380,13 @@ class InteractiveRainfallBlending():
                      textsize=textsize, plotsize=plotsize)
 
         if krig_all_flag is True:
-
-            # if start_date > end_date:
-            #     raise ValueError('End date must be after start date.')
-
-            # elif self.stations_1.index[-1] < start_date:
-            #     raise IndexError('Start date is not contained in station data. '
-            #                      +'Choose a date before {}'.format(self.stations_1.index[-1].date()))
-
-            # elif self.stations_1.index[0] > end_date:
-            #     raise IndexError('End_date is not contained in station data. '
-            #                      +'Choose a date after {}'.format(self.stations_1.index[0].date()))
-            # else:
-            #     pass
-
-            # if (self.stations_1.index[0] > start_date) or (self.stations_1.index[-1] < end_date):
-            #     warnings.warn('\nWarning: date range exceeds station data coverage '
-            #                   +'({0} to {1}), all data being Krigged.'.format(self.stations_1.index[0].date(),
-            #                                                                  self.stations_1.index[-1].date()))
-            # else:
-            #     pass
             self.check_date_range(start_date, end_date)
 
             self.krig_all(outlier_threshold, start_date, end_date,
                           var_p1, var_p2, var_p3, var_model, n_points, sigma)
+        
+        # if plot_all_flag is True:
+        #     self.check_date_range(start_date, end_date)
 
 
     def do_interact(self):
