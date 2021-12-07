@@ -1,21 +1,22 @@
 import glob
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
+import warnings
+
 import pykrige
 import xarray as xr
 import rioxarray
 import scipy.ndimage as ndimage
 import geopandas
 import rasterio as rio
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import pandas as pd
-from tqdm import tqdm
 
 import ipywidgets as widgets
 from ipywidgets import interactive_output, Layout
 from IPython.display import clear_output, display
 import datesConverter
-import warnings
 
 
 class InteractiveRainfallBlending():
@@ -637,6 +638,7 @@ class InteractiveRainfallBlending():
         self.res_all = self.chirp_df_U_all - self.stations_all
         #endregion
 
+
     def do_blending_all(self, var_p1, var_p2, var_p3, var_model,
                         n_points, sigma):
         '''
@@ -694,6 +696,9 @@ class InteractiveRainfallBlending():
 
     def krig_all(self, outlier_threshold, start_date, end_date,
                  var_p1, var_p2, var_p3, var_model, n_points, sigma):
+        '''
+        Function that calls the preprocessing and kriging between a date-rage.
+        '''
 
         self.preprocess_all_data(outlier_threshold, start_date, end_date)
 
@@ -701,7 +706,10 @@ class InteractiveRainfallBlending():
 
 
     def check_if_krigged(self, chirp_fnames, chirp_fdates):
-        # Check if data has been blended already
+        '''
+        Function that checks to see if any of the CHIRP data
+        has been krigged already.
+        '''
         blend_fs = np.sort(glob.glob(self.blend_floc+'*.tif'))
 
         if len(blend_fs) == 0:
@@ -710,10 +718,10 @@ class InteractiveRainfallBlending():
         blend_fdates = [pd.Timestamp(datesConverter.str_to_dek(dekad[-12:-4]))
                         for dekad in blend_fs]
         blend_fdates = np.array(blend_fdates)
-
+        # Find shared dates and their indices in each array
         shared_dates = np.intersect1d(chirp_fdates, blend_fdates,
                                       assume_unique=True, return_indices=True)
-
+        # Delete the indices corresponding to the shared dates from the chirp_fnames list
         to_blend_chirp_fnames = np.delete(chirp_fnames, shared_dates[1]) # [1] is the shared date idx for chirp
 
         return to_blend_chirp_fnames
@@ -723,7 +731,12 @@ class InteractiveRainfallBlending():
                       var_p1, var_p2, var_p3, var_model, n_points, sigma,
                       do_chirp, mask_country, textsize, plotsize,
                       plot_all_flag, ignore_krigged, file_ext):
-
+        '''
+        Function that aggregates the processing and plotting functions
+        to produce all the plots within a date-range.
+        '''
+        # Required so that the intersection of chirp and station data can
+        # be obtained for all of the dekads.
         self.preprocess_all_data(outlier_threshold, start_date, end_date)
 
         if ignore_krigged is True:
@@ -736,6 +749,7 @@ class InteractiveRainfallBlending():
             self.do_blending_all(var_p1, var_p2, var_p3, var_model, n_points, sigma)
 
         elif len(not_krigged) == 0:
+            # Don't perform krigging if it's already been done.
             pass
 
         else:
